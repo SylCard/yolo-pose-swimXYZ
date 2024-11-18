@@ -2,44 +2,59 @@ import os
 from ultralytics import YOLO
 from datetime import datetime
 from pathlib import Path
-import glob
 
-def get_video_label_pairs():
-    """Get matching video and label paths"""
-    video_paths = []
-    label_paths = []
+def load_frame_label_mappings():
+    """Load frame-label mappings from file"""
+    mappings_file = 'frame_label_mappings.txt'
+    if not os.path.exists(mappings_file):
+        raise FileNotFoundError(
+            "frame_label_mappings.txt not found! "
+            "Please run preprocess_videos.py first to extract frames."
+        )
     
-    # Get all .webm files recursively
-    video_files = glob.glob('data/video/**/*.webm', recursive=True)
+    frames = []
+    labels = []
+    with open(mappings_file, 'r') as f:
+        for line in f:
+            frame_path, label_path = line.strip().split(',')
+            if os.path.exists(frame_path):
+                frames.append(frame_path)
+                labels.append(label_path)
+            else:
+                print(f"Warning: Frame not found: {frame_path}")
     
-    for video_path in video_files:
-        # Convert video path to corresponding label path
-        label_path = video_path.replace('video/', 'labels/').replace('.webm', '.txt')
-        if os.path.exists(label_path):
-            video_paths.append(video_path)
-            label_paths.append(label_path)
-    
-    return video_paths, label_paths
+    return frames, labels
 
 def setup_dataset_yaml():
     """Create YAML file for dataset configuration"""
-    video_paths, label_paths = get_video_label_pairs()
+    frame_paths, label_paths = load_frame_label_mappings()
+    
+    if not frame_paths:
+        raise ValueError(
+            "No valid frame-label pairs found! "
+            "Please run preprocess_videos.py to extract frames."
+        )
     
     # Split into train/val (80/20)
-    split_idx = int(len(video_paths) * 0.8)
-    train_videos = video_paths[:split_idx]
-    val_videos = video_paths[split_idx:]
+    split_idx = int(len(frame_paths) * 0.8)
+    train_frames = frame_paths[:split_idx]
+    val_frames = frame_paths[split_idx:]
+    
+    # Get absolute path for current directory
+    cwd = os.getcwd()
+    train_list_path = os.path.join(cwd, 'train_list.txt')
+    val_list_path = os.path.join(cwd, 'val_list.txt')
     
     # Write train/val lists
-    with open('train_list.txt', 'w') as f:
-        f.write('\n'.join(train_videos))
-    with open('val_list.txt', 'w') as f:
-        f.write('\n'.join(val_videos))
+    with open(train_list_path, 'w') as f:
+        f.write('\n'.join(train_frames))
+    with open(val_list_path, 'w') as f:
+        f.write('\n'.join(val_frames))
     
     yaml_content = f"""
-path: {os.getcwd()}  # dataset root dir
-train: train_list.txt  # train videos list
-val: val_list.txt  # val videos list
+path: {cwd}  # root dir (absolute path)
+train: {train_list_path}  # train frames list (absolute path)
+val: {val_list_path}  # val frames list (absolute path)
 
 # Keypoints
 kpt_shape: [17, 3]  # number of keypoints, number of dims (x,y,visible)
@@ -56,7 +71,13 @@ nc: 1  # number of classes
     with open('dataset.yaml', 'w') as f:
         f.write(yaml_content)
     
-    print(f"Found {len(train_videos)} training videos and {len(val_videos)} validation videos")
+    print(f"\nDataset configuration:")
+    print(f"Found {len(train_frames)} training frames and {len(val_frames)} validation frames")
+    print(f"First training frame: {train_frames[0] if train_frames else 'None'}")
+    print(f"First validation frame: {val_frames[0] if val_frames else 'None'}")
+    print(f"Dataset root: {cwd}")
+    print(f"Train list: {train_list_path}")
+    print(f"Val list: {val_list_path}")
 
 def train():
     # Load the YOLO model
@@ -77,7 +98,8 @@ def train():
         'lr0': 0.001,
         'name': f'swim_pose_{datetime.now().strftime("%Y%m%d_%H%M%S")}',
         'cache': True,  # Cache images for faster training
-        'verbose': True
+        'verbose': True,
+        'task': 'pose'  # Explicitly set task as pose estimation
     }
 
     # Train the model

@@ -6,10 +6,12 @@ import glob
 
 def get_latest_model():
     """Get the path to the latest trained model"""
-    models_dir = Path('models')
+    cwd = os.getcwd()
+    models_dir = Path(os.path.join(cwd, 'models'))
+    
     if not models_dir.exists():
         # Check runs directory if models directory is empty
-        runs_dir = Path('runs/pose')
+        runs_dir = Path(os.path.join(cwd, 'runs/pose'))
         if not runs_dir.exists():
             raise FileNotFoundError("No trained models found. Please run training first.")
         
@@ -38,13 +40,14 @@ def predict_video():
         return
 
     # Input video path
-    video_path = 'data/test.mov'
+    cwd = os.getcwd()
+    video_path = os.path.join(cwd, 'data/test.mov')
     if not os.path.exists(video_path):
         print(f"Error: Test video not found at {video_path}")
         return
 
     # Create output directory if it doesn't exist
-    output_dir = Path('predictions')
+    output_dir = Path(os.path.join(cwd, 'predictions'))
     output_dir.mkdir(exist_ok=True)
     
     # Output video path

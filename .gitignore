@@ -8,6 +8,9 @@ dataset.yaml
 train_list.txt
 val_list.txt
 
+# Extracted frames
+data/frames/
+
 # Python
 __pycache__/
 *.py[cod]
